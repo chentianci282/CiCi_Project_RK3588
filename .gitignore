@@ -1,0 +1,25 @@
+# Build output
+build/
+*.o
+*.a
+*.so
+
+# Compiled binaries
+camera_test
+*.exe
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.log
+*.raw
