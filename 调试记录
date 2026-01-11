@@ -1,0 +1,13 @@
+2026-01-11
+    1.插入摄像头后,使用dmesg查看摄像头驱动是否加载成功。加载成功会有如下提示:
+        [    3.623224] imx415 7-001a: driver version: 00.01.08
+        [    3.623254] imx415 7-001a:  Get hdr mode failed! no hdr default
+        [    3.623267] imx415 7-001a: detect imx415 lane 4
+        [    3.623305] imx415 7-001a: could not get default pinstate
+        [    3.623312] imx415 7-001a: could not get sleep pinstate
+        [    3.623331] imx415 7-001a: supply dvdd not found, using dummy regulator
+        [    3.623410] imx415 7-001a: supply dovdd not found, using dummy regulator
+        [    3.623446] imx415 7-001a: supply avdd not found, using dummy regulator
+        [    3.687866] imx415 7-001a: Detected imx415 id 0000e0
+    驱动加载成功后，即可使用v4l2-ctl命令查看摄像头支持的格式，或者是抓图。
+    
