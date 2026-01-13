@@ -15,8 +15,9 @@ void signalHandler(int sig) {
 
 int main(int argc, char* argv[]) {
     std::string camera_device = "/dev/video62";
-    uint32_t width = 1280;   // 720p宽度
-    uint32_t height = 720;   // 720p高度
+    // 摄像头分辨率（1080x1920竖屏，与屏幕分辨率匹配）
+    uint32_t width = 1080;   // 摄像头宽度
+    uint32_t height = 1920;  // 摄像头高度
 
     // 解析命令行参数
     if (argc > 1) {
@@ -60,7 +61,8 @@ int main(int argc, char* argv[]) {
     // 初始化显示
     DisplayDevice display;
     printf("[3/3] 初始化显示设备...\n");
-    if (display.init() < 0) {
+    // 明确指定使用DSI-1（连接器ID 238）
+    if (display.init("", 238) < 0) {
         fprintf(stderr, "❌ 显示设备初始化失败\n");
         camera.stop();
         camera.deinit();

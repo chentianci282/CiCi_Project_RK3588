@@ -11,3 +11,10 @@
         [    3.687866] imx415 7-001a: Detected imx415 id 0000e0
     驱动加载成功后，即可使用v4l2-ctl命令查看摄像头支持的格式，或者是抓图。
     
+
+2026-01-13
+    1.正点原子屏幕需要接到DIS0才可以正常显示屏幕。
+        执行以下命令kill掉weston相关的进程。
+    killall weston weston-keyboard weston-desktop-shell systemui sysvolume
+        执行下面命令测试屏幕，屏幕出现条纹。
+    modetest -D /dev/dri/card0 -s 238:#0
