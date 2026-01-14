@@ -18,3 +18,15 @@
     killall weston weston-keyboard weston-desktop-shell systemui sysvolume
         执行下面命令测试屏幕，屏幕出现条纹。
     modetest -D /dev/dri/card0 -s 238:#0
+
+2026-01-14
+    1./dev/dri/card0是屏幕的设备节点
+    目录下有：
+    Connector: 表示物理接口 如何 HDMI MIPIDSI DP
+    CRTC: 负责生成时序
+    Ecodeor: 负责将数字信号转化为特定接口的格式
+        HDMI Encoder:转换为 HDMI 信号  
+        DSI Encoder:转换为 MIPI DSI 信号
+        DP Encoder:转换为 DisplayPort 信号
+
+    2.camera_decice.cpp是对v4l2接口的封装,display_device.cpp是对libdrm接口的封装。
