@@ -30,3 +30,63 @@
         DP Encoder:转换为 DisplayPort 信号
 
     2.camera_decice.cpp是对v4l2接口的封装,display_device.cpp是对libdrm接口的封装。
+
+2026-01-17
+    1.开发板使用的是设备树配置是rk3588-evb7-lp4-v10-linux.dts
+
+    2.RK3588硬件模块统计：
+        CSI2 DPHY（MIPI D-PHY物理层）
+        数量：6个逻辑接口（csi2_dphy0 ~ csi2_dphy5）
+        硬件控制器：2个（csi2_dphy0_hw, csi2_dphy1_hw）
+        物理PHY：2个（mipidcphy0, mipidcphy1）
+        共享方式：6个逻辑接口共享2个硬件控制器
+        驱动位置：drivers/phy/rockchip/phy-rockchip-csi2-dphy.c
+
+        MIPI CSI2（MIPI CSI-2协议控制器）
+        数量：6个（mipi0_csi2 ~ mipi5_csi2）
+        硬件控制器：6个（mipi0_csi2_hw ~ mipi5_csi2_hw）
+        共享方式：每个逻辑接口对应一个硬件控制器
+        驱动位置：drivers/media/platform/rockchip/cif/mipi-csi2.c
+
+        RKCIF（Rockchip Camera Interface）
+        数量：1个硬件（rkcif）
+        逻辑接口：6个MIPI LVDS接口（rkcif_mipi_lvds ~ rkcif_mipi_lvds5）
+        共享方式：6个逻辑接口共享1个RKCIF硬件
+        驱动位置：drivers/media/platform/rockchip/cif/hw.c
+
+        RKISP（Image Signal Processor）
+        数量：2个硬件（rkisp0, rkisp1）
+        虚拟端口：每个ISP支持4个虚拟端口（rkisp0_vir0-3, rkisp1_vir0-3）
+        共享方式：每个ISP的多个虚拟端口共享同一个硬件
+        驱动位置：drivers/media/platform/rockchip/isp/hw.c
+
+        数据流向：
+        Sensor -> Mipi_Dphy -> Mipi_Cis2 -> RKCIF -> RKISP
+
+        接下来以rk3588-evb7-lp4-v10-linux.dts为例，分析第一个摄像头的硬件连接配置。
+
+        
+        以下摘选自rk3588-evb7-lp4-v10-linux.dts文件
+		port {
+			imx415_out0: endpoint {
+				remote-endpoint = <&mipidphy0_in_ucam0>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+        说明：imx415_out0是摄像头输出的端口，连接到了mipidphy0_in_ucam0端口
+
+            mipidphy0_in_ucam0: endpoint@1 {
+            reg = <1>;
+            remote-endpoint = <&imx415_out0>;
+            data-lanes = <1 2 3 4>;
+        };
+        说明：mipidphy0_in_ucam0是MIPI D-PHY的输入端口，连接到了imx415_out0端口
+
+        两者进行相互声明，表示 Sensor -> MIPIDPHY这个连接。
+
+        使用相同的方法分析，可以得到以下连接：
+
+        
+        ----------------------------------------------------------------------
+        Sensor -> csi2_dphy0 -> mipi2_csi2 -> rkcif_mipi_lvds2 -> rkisp0_vir0
+        ----------------------------------------------------------------------
