@@ -90,3 +90,73 @@
         ----------------------------------------------------------------------
         Sensor -> csi2_dphy0 -> mipi2_csi2 -> rkcif_mipi_lvds2 -> rkisp0_vir0
         ----------------------------------------------------------------------
+
+
+2026-01-18
+             # Rockchip RK系列摄像头管道 - 节点与硬件对应关系
+
+            ## 1. 物理硬件层级
+            摄像头传感器 (IMX415) -> CSI2 DPHY -> MIPI CSI2控制器 -> CIF (Camera Interface) -> ISP (Image Signal Processor)
+
+            ## 2. V4L2设备节点映射
+
+            ### A. 传感器和接口层 (V4L Subdevices)
+            - /dev/v4l-subdev0: rockchip-mipi-csi2 (MIPI CSI2控制器)
+            - /dev/v4l-subdev1: rockchip-csi2-dphy0 (CSI2 DPHY物理接口)  
+            - /dev/v4l-subdev2: m02_b_imx415 7-001a (Sony IMX415摄像头传感器)
+            - /dev/v4l-subdev3: rkisp-isp-subdev (ISP子设备)
+            - /dev/v4l-subdev11: rkisp-isp-subdev (ISP0子设备)
+
+            ### B. 视频设备节点 (V4L Video Devices)
+
+            #### CIF (Camera Interface) 设备 - 原始数据输出
+            - /dev/video0: stream_cif_mipi_id0 (CIF主通道0 - 原始Bayer数据)
+            - /dev/video1: stream_cif_mipi_id1 (CIF主通道1 - 原始Bayer数据)  
+            - /dev/video2: stream_cif_mipi_id2 (CIF主通道2 - 原始Bayer数据)
+            - /dev/video3: stream_cif_mipi_id3 (CIF主通道3 - 原始Bayer数据)
+
+            #### CIF缩放通道 - 硬件缩放后的数据
+            - /dev/video4: rkcif_scale_ch0 (缩放通道0)
+            - /dev/video5: rkcif_scale_ch1 (缩放通道1) 
+            - /dev/video6: rkcif_scale_ch2 (缩放通道2)
+            - /dev/video7: rkcif_scale_ch3 (缩放通道3)
+
+            #### CIF工具通道 - 调试和开发用
+            - /dev/video8: rkcif_tools_id0 (工具通道0)
+            - /dev/video9: rkcif_tools_id1 (工具通道1)
+            - /dev/video10: rkcif_tools_id2 (工具通道2)
+
+            #### ISP (Image Signal Processor) - 处理后数据输出
+            - /dev/video44: rkisp_mainpath (ISP0主路径 - NV12/YUV格式)
+            - /dev/video45: rkisp_selfpath (ISP0自拍路径)
+            - /dev/video46: rkisp_fbcpath (ISP0 FBC压缩路径)
+            - /dev/video47: rkisp_iqtool (ISP0 IQ调试工具)
+            - /dev/video48: rkisp_rawrd0_m (ISP0原始数据读取器)
+            - /dev/video49: rkisp_rawrd2_s (ISP0原始数据读取器)
+            - /dev/video50: rkisp_rawrd1_l (ISP0原始数据读取器)
+
+            #### ISP1设备组
+            - /dev/video51: rkisp-statistics (ISP0统计信息)
+            - /dev/video52: rkisp-input-params (ISP0输入参数)
+            - /dev/video53-59: rkisp_mainpath (ISP0虚拟设备组)
+            - /dev/video60-61: rkisp-statistics (ISP0统计设备)
+            - /dev/video62: rkisp_mainpath (ISP1主路径 - NV12/YUV格式)
+            - /dev/video63-68: rkisp_mainpath (ISP1设备组)
+            - /dev/video69-77: rkisp-statistics (ISP统计设备)
+            - /dev/video78-79: rkisp-input-params (ISP输入参数)
+
+            #### 其他设备
+            - /dev/video80: rk_hdmirx (HDMI接收器)
+            - /dev/video-camera0: 摄像头设备
+            - /dev/video-dec0: 解码器设备
+            - /dev/video-enc0: 编码器设备
+
+            ### C. Media控制器设备
+            - /dev/media0: rkcif (CIF媒体控制器)
+            - /dev/media1: rkcif-mipi-lvds (CIF媒体控制器)
+            - /dev/media2: rkcif-mipi-lvds (CIF媒体控制器)
+            - /dev/media3: rkcif-mipi-lvds (CIF媒体控制器)
+            - /dev/media4: rkisp0-vir0 (ISP0媒体控制器)
+            - /dev/media5: rkisp0-vir1 (ISP0媒体控制器)
+            - /dev/media6: rkisp1-vir0 (ISP1媒体控制器)
+            - /dev/media7: rkisp1-vir1 (ISP1媒体控制器)
