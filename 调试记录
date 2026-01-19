@@ -160,3 +160,7 @@
             - /dev/media5: rkisp0-vir1 (ISP0媒体控制器)
             - /dev/media6: rkisp1-vir0 (ISP1媒体控制器)
             - /dev/media7: rkisp1-vir1 (ISP1媒体控制器)
+
+
+2026-01-19
+    1.test_mpi_vi.cpp是VI的测试程序
