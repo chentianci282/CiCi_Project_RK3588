@@ -44,6 +44,7 @@ OBJECTS = $(SOURCES:$(SRC_DIR)/%.cpp=$(BUILD_DIR)/%.o)
 TARGET = $(BUILD_DIR)/camera_test
 TARGET_DISPLAY = $(BUILD_DIR)/camera_display_test
 TARGET_VI_VENC = $(BUILD_DIR)/vi_venc_capture
+TARGET_DEMO_VI = $(BUILD_DIR)/test_mpi_vi
 
 # 包含路径
 # 使用camera_engine_rkaiq中的DRM头文件（更完整）
@@ -61,12 +62,13 @@ INCLUDES = -I$(INC_DIR) -I$(BUILD_DIR) -I$(DRM_CORE_INCLUDE_PATH) -I$(DRM_INCLUD
 .PHONY: all clean
 
 # 检查工具链是否存在（在编译前自动检查）
-all: $(TARGET) $(TARGET_DISPLAY) $(TARGET_VI_VENC)
+all: $(TARGET) $(TARGET_DISPLAY) $(TARGET_VI_VENC) $(TARGET_DEMO_VI)
 
 # 在编译前检查工具链和创建符号链接
 $(TARGET): | check-toolchain $(BUILD_DIR)/drm
 $(TARGET_DISPLAY): | check-toolchain $(BUILD_DIR)/drm
 $(TARGET_VI_VENC): | check-toolchain $(BUILD_DIR)/drm
+$(TARGET_DEMO_VI): | check-toolchain $(BUILD_DIR)/drm
 
 check-toolchain:
 	@if [ ! -f "$(CXX)" ]; then \
@@ -102,6 +104,121 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp
 
 # 编译test_comm_utils.cpp（从rockit example中）
 $(BUILD_DIR)/test_comm_utils.o: $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_utils.cpp
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+# 编译demo程序test_mpi_vi（从rockit example中）
+ROCKIT_EXAMPLE_MOD_PATH = $(SDK_ROOT)/external/rockit/mpi/example/mod
+ROCKIT_EXAMPLE_COMMON_SRC = $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_argparse.cpp \
+                            $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_utils.cpp \
+                            $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_app_vdec.cpp \
+                            $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_app_vo.cpp \
+                            $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_venc.cpp \
+                            $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_vo.cpp \
+                            $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_vpss.cpp \
+                            $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_vdec.cpp \
+                            $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_sys.cpp \
+                            $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_rgn.cpp \
+                            $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_bmp.cpp \
+                            $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_imgproc.cpp \
+                            $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_tde.cpp \
+                            $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_vgs.cpp \
+                            $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_ao.cpp \
+                            $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_avs.cpp
+
+ROCKIT_EXAMPLE_COMMON_OBJS = $(BUILD_DIR)/test_comm_argparse.o \
+                             $(BUILD_DIR)/test_comm_utils.o \
+                             $(BUILD_DIR)/test_comm_app_vdec.o \
+                             $(BUILD_DIR)/test_comm_app_vo.o \
+                             $(BUILD_DIR)/test_comm_venc.o \
+                             $(BUILD_DIR)/test_comm_vo.o \
+                             $(BUILD_DIR)/test_comm_vpss.o \
+                             $(BUILD_DIR)/test_comm_vdec.o \
+                             $(BUILD_DIR)/test_comm_sys.o \
+                             $(BUILD_DIR)/test_comm_rgn.o \
+                             $(BUILD_DIR)/test_comm_bmp.o \
+                             $(BUILD_DIR)/test_comm_imgproc.o \
+                             $(BUILD_DIR)/test_comm_tde.o \
+                             $(BUILD_DIR)/test_comm_vgs.o \
+                             $(BUILD_DIR)/test_comm_ao.o \
+                             $(BUILD_DIR)/test_comm_avs.o \
+                             $(BUILD_DIR)/test_comm_tmd.o
+
+$(TARGET_DEMO_VI): $(BUILD_DIR)/test_mpi_vi.o $(ROCKIT_EXAMPLE_COMMON_OBJS)
+	$(CXX) $^ -o $@ $(LDFLAGS)
+	$(STRIP) $@
+	@echo "Build complete: $@"
+	@file $@
+
+$(BUILD_DIR)/test_mpi_vi.o: $(ROCKIT_EXAMPLE_MOD_PATH)/test_mpi_vi.cpp
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/test_comm_argparse.o: $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_argparse.cpp
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/test_comm_utils.o: $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_utils.cpp
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/test_comm_app_vdec.o: $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_app_vdec.cpp
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/test_comm_app_vo.o: $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_app_vo.cpp
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/test_comm_venc.o: $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_venc.cpp
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/test_comm_vo.o: $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_vo.cpp
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/test_comm_vpss.o: $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_vpss.cpp
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/test_comm_vdec.o: $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_vdec.cpp
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/test_comm_sys.o: $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_sys.cpp
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/test_comm_rgn.o: $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_rgn.cpp
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/test_comm_bmp.o: $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_bmp.cpp
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/test_comm_imgproc.o: $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_imgproc.cpp
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/test_comm_tde.o: $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_tde.cpp
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/test_comm_vgs.o: $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_vgs.cpp
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/test_comm_ao.o: $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_ao.cpp
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/test_comm_avs.o: $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_avs.cpp
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/test_comm_tmd.o: $(ROCKIT_EXAMPLE_COMMON_PATH)/tmedia/test_comm_tmd.cpp
 	@mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
