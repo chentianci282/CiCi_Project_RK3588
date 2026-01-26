@@ -167,3 +167,76 @@
 
 2026-01-21
     demo可以执行，但是无法获得编码流。
+
+2026-01-26
+
+# 方法：遍历所有 video 节点，查找 ISP 缩放节点
+for i in $(seq 0 60); do 
+    if [ -c /dev/video$i ]; then 
+        echo "video$i: $(cat /sys/class/video4linux/video$i/name 2>/dev/null)";
+    fi;
+done
+使用以上命令可以查看rk的节点映射。
+video0: stream_cif_mipi_id0
+video1: stream_cif_mipi_id1
+video2: stream_cif_mipi_id2
+video3: stream_cif_mipi_id3
+video4: rkcif_scale_ch0
+video5: rkcif_scale_ch1
+video6: rkcif_scale_ch2
+video7: rkcif_scale_ch3
+video8: rkcif_tools_id0
+video9: rkcif_tools_id1
+video10: rkcif_tools_id2
+video11: stream_cif_mipi_id0
+video12: stream_cif_mipi_id1
+video13: stream_cif_mipi_id2
+video14: stream_cif_mipi_id3
+video15: rkcif_scale_ch0
+video16: rkcif_scale_ch1
+video17: rkcif_scale_ch2
+video18: rkcif_scale_ch3
+video19: rkcif_tools_id0
+video20: rkcif_tools_id1
+video21: rkcif_tools_id2
+video22: stream_cif_mipi_id0
+video23: stream_cif_mipi_id1
+video24: stream_cif_mipi_id2
+video25: stream_cif_mipi_id3
+video26: rkcif_scale_ch0
+video27: rkcif_scale_ch1
+video28: rkcif_scale_ch2
+video29: rkcif_scale_ch3
+video30: rkcif_tools_id0
+video31: rkcif_tools_id1
+video32: rkcif_tools_id2
+video33: stream_cif_mipi_id0
+video34: stream_cif_mipi_id1
+video35: stream_cif_mipi_id2
+video36: stream_cif_mipi_id3
+video37: rkcif_scale_ch0
+video38: rkcif_scale_ch1
+video39: rkcif_scale_ch2
+video40: rkcif_scale_ch3
+video41: rkcif_tools_id0
+video42: rkcif_tools_id1
+video43: rkcif_tools_id2
+video44: rkisp_mainpath
+video45: rkisp_selfpath
+video46: rkisp_fbcpath
+video47: rkisp_iqtool
+video48: rkisp_rawrd0_m
+video49: rkisp_rawrd2_s
+video50: rkisp_rawrd1_l
+video51: rkisp-statistics
+video52: rkisp-input-params
+video53: rkisp_mainpath
+video54: rkisp_selfpath
+video55: rkisp_fbcpath
+video56: rkisp_iqtool
+video57: rkisp_rawrd0_m
+video58: rkisp_rawrd2_s
+video59: rkisp_rawrd1_l
+video60: rkisp-statistics
+
+demo仍未出流。接下来按照sensor -> isp的顺序进行调试。有可能是因为绑定顺序不对，导致没有出流。
