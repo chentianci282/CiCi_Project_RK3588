@@ -1626,7 +1626,7 @@ int main(int argc, const char **argv) {
 
     ctx->width = 0;
     ctx->height = 0;
-    ctx->devId = 0;
+    ctx->devId = 62;  // 使用设备ID为62，对应 /dev/video62
     ctx->pipeId = ctx->devId;
     ctx->channelId = 1;
     ctx->loopCountSet = 100;
@@ -1635,7 +1635,7 @@ int main(int argc, const char **argv) {
     ctx->stChnAttr.stIspOpt.enMemoryType = VI_V4L2_MEMORY_TYPE_DMABUF;
     ctx->stChnAttr.stIspOpt.enCaptureType = VI_V4L2_CAPTURE_TYPE_VIDEO_CAPTURE;
     ctx->stChnAttr.u32Depth = 0;
-    ctx->aEntityName = RK_NULL;
+    ctx->aEntityName = "/dev/video62";  // 确保设备路径指向 /dev/video62
     ctx->stChnAttr.enPixelFormat = RK_FMT_YUV420SP;
     ctx->stChnAttr.stFrameRate.s32SrcFrameRate = -1;
     ctx->stChnAttr.stFrameRate.s32DstFrameRate = -1;
@@ -1644,6 +1644,11 @@ int main(int argc, const char **argv) {
     ctx->rgnType = RGN_BUTT;
     ctx->bEnSwcac = RK_FALSE;
     RK_LOGE("test running enter!");
+    RK_LOGE("=== Initialized Parameters ===");
+    RK_LOGE("devId: %d", ctx->devId);
+    RK_LOGE("pipeId: %d", ctx->pipeId);
+    RK_LOGE("channelId: %d", ctx->channelId);
+    RK_LOGE("aEntityName: %s", ctx->aEntityName ? ctx->aEntityName : "NULL");
 
     struct argparse_option options[] = {
         OPT_HELP(),

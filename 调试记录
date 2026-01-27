@@ -240,3 +240,37 @@ video59: rkisp_rawrd1_l
 video60: rkisp-statistics
 
 demo仍未出流。接下来按照sensor -> isp的顺序进行调试。有可能是因为绑定顺序不对，导致没有出流。
+
+
+
+2026-01-27
+    1.V4L2-ctl工具，主要查看设备能不能用，怎么用。
+    主要针对以下内容
+    /dev/videox(Video 节点)进行操作。
+        查询支持的格式、分辨率
+        v4l2-ctl -d /dev/video44 --list-formats-ext
+        开始/停止采集(STREAMON / STREAMOFF)
+    /dev/v4l-subdevx(对 Subdev(sensor / csi / isp 子设备))进行操作。
+        查询/设置 media bus 格式（Bayer、RAW）
+        v4l2-ctl -d /dev/v4l-subdevX --set-fmt-video=width=1920,height=1080,pixelformat=UYVY
+        查询 sensor 的模式信息
+        v4l2-ctl -d /dev/v4l-subdevX --all
+        查询 sensor 的寄存器信息
+        v4l2-ctl -d /dev/v4l-subdevX --register=0x0000dd
+
+    2.media-ctl关心拓扑解构和连线。
+    包括以下几个部分：
+        Entity（实体）
+            sensor
+            csi-dphy
+            cif
+            isp
+            video node
+        Pad（端口）
+            Pad是Entity的输入和输出端口。
+        Link（连接）
+            Link是Entity之间的连接。
+        Format（在 pad 上跑什么数据）
+            Format是Pad上跑的数据格式。
+
+        3.当前开发板的MIPi 摄像头的ISP节点对应的是 /dev/video62。

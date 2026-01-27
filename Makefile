@@ -150,7 +150,7 @@ $(TARGET_DEMO_VI): $(BUILD_DIR)/test_mpi_vi.o $(ROCKIT_EXAMPLE_COMMON_OBJS)
 	@echo "Build complete: $@"
 	@file $@
 
-$(BUILD_DIR)/test_mpi_vi.o: $(ROCKIT_EXAMPLE_MOD_PATH)/test_mpi_vi.cpp
+$(BUILD_DIR)/test_mpi_vi.o: $(SRC_DIR)/test_mpi_vi.cpp
 	@mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
