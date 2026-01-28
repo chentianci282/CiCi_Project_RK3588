@@ -274,3 +274,9 @@ demo仍未出流。接下来按照sensor -> isp的顺序进行调试。有可能
             Format是Pad上跑的数据格式。
 
         3.当前开发板的MIPi 摄像头的ISP节点对应的是 /dev/video62。
+
+
+2026-01-28
+    1.编译mpi_enc_test.c
+    执行./mpi_enc_test -w 3840 -h 2160 -i /dev/video62 -o output.h264 -t 7 -fps_in_num 30 -fps_in_den 1 -bps 10000000 可以正常生成h264文件。
+    使用port64player可以正常出图。

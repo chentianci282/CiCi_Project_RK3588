@@ -5,11 +5,12 @@ CROSS_COMPILE_PREFIX := aarch64-none-linux-gnu-
 
 # 交叉编译工具
 CXX = $(TOOLCHAIN_PATH)/$(CROSS_COMPILE_PREFIX)g++
-CC = $(TOOLCHAIN_PATH)/$(CROSS_COMPILE_PREFIX)gcc
+CC  = $(TOOLCHAIN_PATH)/$(CROSS_COMPILE_PREFIX)gcc
 STRIP = $(TOOLCHAIN_PATH)/$(CROSS_COMPILE_PREFIX)strip
 
 # 编译选项
 CXXFLAGS = -Wall -Wextra -O2 -g -std=c++11 -fno-rtti
+CFLAGS   = -Wall -Wextra -O2 -g
 
 # DRM库路径（使用camera_engine_rkaiq中的库，或开发板系统库）
 # 开发板上应该有系统自带的libdrm，运行时会自动找到
@@ -23,7 +24,12 @@ ROCKIT_EXAMPLE_COMMON_PATH = $(SDK_ROOT)/external/rockit/mpi/example/common
 ROCKIT_LIB_INCLUDE_PATH = $(SDK_ROOT)/external/rockit/lib/lib64
 
 # MPP库路径（rockchip_mpp）
-MPP_LIB_PATH = $(SDK_ROOT)/external/mpp/build/install/usr/local/lib
+MPP_LIB_PATH               = $(SDK_ROOT)/external/mpp/build/install/usr/local/lib
+MPP_INCLUDE_PATH           = $(SDK_ROOT)/external/mpp/build/install/usr/local/include
+MPP_ROCKCHIP_INC_PATH      = $(MPP_INCLUDE_PATH)/rockchip
+MPP_INTERNAL_OSAL_INC_PATH = $(SDK_ROOT)/external/mpp/osal/inc
+MPP_UTILS_PATH             = $(SDK_ROOT)/external/mpp/utils
+MPP_BASE_INC_PATH          = $(SDK_ROOT)/external/mpp/mpp/base/inc
 
 # 链接库（asound在运行时由系统提供，链接时使用-Wl,--allow-shlib-undefined）
 LDFLAGS = -L$(DRM_LIB_PATH) -L$(ROCKIT_LIB_PATH) -L$(MPP_LIB_PATH) \
@@ -41,10 +47,19 @@ SOURCES = $(wildcard $(SRC_DIR)/*.cpp)
 OBJECTS = $(SOURCES:$(SRC_DIR)/%.cpp=$(BUILD_DIR)/%.o)
 
 # 目标
-TARGET = $(BUILD_DIR)/camera_test
-TARGET_DISPLAY = $(BUILD_DIR)/camera_display_test
-TARGET_VI_VENC = $(BUILD_DIR)/vi_venc_capture
-TARGET_DEMO_VI = $(BUILD_DIR)/test_mpi_vi
+TARGET           = $(BUILD_DIR)/camera_test
+TARGET_DISPLAY   = $(BUILD_DIR)/camera_display_test
+TARGET_VI_VENC   = $(BUILD_DIR)/vi_venc_capture
+TARGET_DEMO_VI   = $(BUILD_DIR)/test_mpi_vi
+TARGET_MPI_ENC   = $(BUILD_DIR)/mpi_enc_test
+
+MPI_ENC_UTIL_OBJS = $(BUILD_DIR)/utils.o \
+                    $(BUILD_DIR)/mpi_enc_utils.o \
+                    $(BUILD_DIR)/camera_source.o \
+                    $(BUILD_DIR)/mpp_enc_roi_utils.o \
+                    $(BUILD_DIR)/iniparser.o \
+                    $(BUILD_DIR)/dictionary.o \
+                    $(BUILD_DIR)/mpp_opt.o
 
 # 包含路径
 # 使用camera_engine_rkaiq中的DRM头文件（更完整）
@@ -57,18 +72,26 @@ $(BUILD_DIR)/drm:
 	@ln -sf drm/drm.h $(BUILD_DIR)/drm.h
 	@ln -sf drm/drm_mode.h $(BUILD_DIR)/drm_mode.h
 INCLUDES = -I$(INC_DIR) -I$(BUILD_DIR) -I$(DRM_CORE_INCLUDE_PATH) -I$(DRM_INCLUDE_PATH) \
-           -I$(ROCKIT_INCLUDE_PATH) -I$(ROCKIT_EXAMPLE_INCLUDE_PATH) -I$(ROCKIT_LIB_INCLUDE_PATH)
+           -I$(ROCKIT_INCLUDE_PATH) -I$(ROCKIT_EXAMPLE_INCLUDE_PATH) -I$(ROCKIT_LIB_INCLUDE_PATH) \
+           -I$(MPP_INCLUDE_PATH) -I$(MPP_ROCKCHIP_INC_PATH) -I$(MPP_INTERNAL_OSAL_INC_PATH)
+
+# 仅用于mpi_enc_test相关源码的专用包含路径（避免与Rockit的rk_type冲突）
+MPP_ENC_TEST_INCLUDES = -I$(INC_DIR) -I$(BUILD_DIR) \
+                        -I$(MPP_INCLUDE_PATH) -I$(MPP_ROCKCHIP_INC_PATH) \
+                        -I$(MPP_INTERNAL_OSAL_INC_PATH) -I$(MPP_UTILS_PATH) \
+                        -I$(MPP_BASE_INC_PATH)
 
 .PHONY: all clean
 
 # 检查工具链是否存在（在编译前自动检查）
-all: $(TARGET) $(TARGET_DISPLAY) $(TARGET_VI_VENC) $(TARGET_DEMO_VI)
+all: $(TARGET) $(TARGET_DISPLAY) $(TARGET_VI_VENC) $(TARGET_DEMO_VI) $(TARGET_MPI_ENC)
 
 # 在编译前检查工具链和创建符号链接
 $(TARGET): | check-toolchain $(BUILD_DIR)/drm
 $(TARGET_DISPLAY): | check-toolchain $(BUILD_DIR)/drm
 $(TARGET_VI_VENC): | check-toolchain $(BUILD_DIR)/drm
 $(TARGET_DEMO_VI): | check-toolchain $(BUILD_DIR)/drm
+$(TARGET_MPI_ENC): | check-toolchain $(BUILD_DIR)/drm
 
 check-toolchain:
 	@if [ ! -f "$(CXX)" ]; then \
@@ -150,9 +173,52 @@ $(TARGET_DEMO_VI): $(BUILD_DIR)/test_mpi_vi.o $(ROCKIT_EXAMPLE_COMMON_OBJS)
 	@echo "Build complete: $@"
 	@file $@
 
+$(TARGET_MPI_ENC): $(BUILD_DIR)/mpi_enc_test.o $(MPI_ENC_UTIL_OBJS)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+	$(STRIP) $@
+	@echo "Build complete: $@"
+	@file $@
+
 $(BUILD_DIR)/test_mpi_vi.o: $(SRC_DIR)/test_mpi_vi.cpp
 	@mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/mpi_enc_test.o: $(SRC_DIR)/mpi_enc_test.c
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(MPP_ENC_TEST_INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/utils.o: $(MPP_UTILS_PATH)/utils.c
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(MPP_ENC_TEST_INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/mpi_enc_utils.o: $(MPP_UTILS_PATH)/mpi_enc_utils.c
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(MPP_ENC_TEST_INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/camera_source.o: $(MPP_UTILS_PATH)/camera_source.c
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(MPP_ENC_TEST_INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/mpp_enc_roi_utils.o: $(MPP_UTILS_PATH)/mpp_enc_roi_utils.c
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(MPP_ENC_TEST_INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/iniparser.o: $(MPP_UTILS_PATH)/iniparser.c
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(MPP_ENC_TEST_INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/dictionary.o: $(MPP_UTILS_PATH)/dictionary.c
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(MPP_ENC_TEST_INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/mpp_opt.o: $(MPP_UTILS_PATH)/mpp_opt.c
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(MPP_ENC_TEST_INCLUDES) -c $< -o $@
+
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 $(BUILD_DIR)/test_comm_argparse.o: $(ROCKIT_EXAMPLE_COMMON_PATH)/test_comm_argparse.cpp
 	@mkdir -p $(BUILD_DIR)
