@@ -280,3 +280,24 @@ demo仍未出流。接下来按照sensor -> isp的顺序进行调试。有可能
     1.编译mpi_enc_test.c
     执行./mpi_enc_test -w 3840 -h 2160 -i /dev/video62 -o output.h264 -t 7 -fps_in_num 30 -fps_in_den 1 -bps 10000000 可以正常生成h264文件。
     使用port64player可以正常出图。
+
+
+2026-01-29
+    1.mpi_enc_test的核心是通过v4l2框架进行数据采集，然后直接喂给编码器进行编码输出码流
+      rk_mpi_enc_test 则是流水线框架， VI ->VPSS ->VENC ->VENC_OUT。
+
+    2.瑞芯微平台和海思平台的区别：
+    海思的MPP是不开源的，并且封装比较成熟，主要写业务逻辑
+    瑞芯微的视频采集、VO分别走v4l2子系统，DRM子系统，更贴近底层。
+
+    3.Linux Media Controller 描述的范围比 V4L2子系统更大
+    Media Controller 描述的是视频硬件系统长什么样子，模块是怎么连接的。
+    V4L2则是我怎么从这个视频节点取帧，设置格式。
+
+    4.Media controller 里面的一些概念：
+    Entity：实体，表示一个硬件模块。
+    Pad：端口，表示一个实体的输入和输出端口。
+    Link：连接，表示一个实体的输入和输出端口之间的连接。
+
+    5.当entity具有生产、消费视频流的能力时，就可以注册为/dev/videox设备节点。
+     v4l2子系统就是对这些节点进行视频采集。
