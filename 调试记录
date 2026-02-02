@@ -301,3 +301,29 @@ demo仍未出流。接下来按照sensor -> isp的顺序进行调试。有可能
 
     5.当entity具有生产、消费视频流的能力时，就可以注册为/dev/videox设备节点。
      v4l2子系统就是对这些节点进行视频采集。
+
+
+    2026-02-01
+    1./dev/media*是media controller的设备节点。用于控制硬件的连接拓扑
+    2./dev/video*是v4l2的设备节点。用于视频采集。
+
+    3.RK3588硬件模块统计：
+    CSI2 DPHY（MIPI D-PHY物理层）  数量 2个
+    MIPI CSI2（MIPI CSI-2协议控制器） 数量 6个
+    RKCIF（Rockchip Camera Interface） 数量 1个  内部被虚拟成6个
+    RKISP（Image Signal Processor） 数量 2个
+
+    每一个DPHY有4datalane 可以复用为 2+2
+    
+    2026-02-02
+    1.执行./test_mpi_vi -m 1 -w 3840 -h 2160 -t 4 -f 0 --buf_count 6 -o 1 -n /dev/video62可以正常出流。
+    ./test_mpi_vi -m 1 -l 500 -w 3840 -h 2160 -t 4 -f 0 --buf_count 6 -o 1 -n /dev/video62  可以出venc
+
+    
+    
+    
+    
+    
+    
+    
+    
