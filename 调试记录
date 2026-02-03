@@ -319,6 +319,57 @@ demo仍未出流。接下来按照sensor -> isp的顺序进行调试。有可能
     1.执行./test_mpi_vi -m 1 -w 3840 -h 2160 -t 4 -f 0 --buf_count 6 -o 1 -n /dev/video62可以正常出流。
     ./test_mpi_vi -m 1 -l 500 -w 3840 -h 2160 -t 4 -f 0 --buf_count 6 -o 1 -n /dev/video62  可以出venc
 
+
+
+    2026-02-03
+    1.执行./test_mpi_vi -m 1 -l 50000 -w 3840 -h 2160 -t 4 -f 0 --buf_count 6 -o 1 -n /dev/video62 码流文件正常输出。之前是因为循环设置的不够大。
+
+    2.export rt_log_level=6 使用这个命令可以查看详细的日志。
+
+    3.RK3588 有两个物理ISP，但是会虚拟成4个ISP，rkisp0-vir0, rkisp0-vir1, rkisp1-vir0, rkisp1-vir1。
+
+        执行下面的命令可以查看所有video节点的名称。
+        grep -H . /sys/class/video4linux/video*/name | sort
+
+        找到对应的isp mainpath节点。然后执行下面的命令。
+        v4l2-ctl -d /dev/video44 --all | grep -E "Card type|Bus info"
+        v4l2-ctl -d /dev/video53 --all | grep -E "Card type|Bus info"
+        v4l2-ctl -d /dev/video62 --all | grep -E "Card type|Bus info"
+        v4l2-ctl -d /dev/video71 --all | grep -E "Card type|Bus info"
+
+
+        root@ATK-DLRK3588:/# v4l2-ctl -d /dev/video44 --all | grep -E "Card type|Bus info"
+                Card type        : rkisp_mainpath
+                Bus info         : platform:rkisp0-vir0
+        root@ATK-DLRK3588:/# v4l2-ctl -d /dev/video53 --all | grep -E "Card type|Bus info"
+                Card type        : rkisp_mainpath
+                Bus info         : platform:rkisp0-vir1
+        root@ATK-DLRK3588:/# v4l2-ctl -d /dev/video62 --all | grep -E "Card type|Bus info"
+                Card type        : rkisp_mainpath
+                Bus info         : platform:rkisp1-vir0
+        root@ATK-DLRK3588:/# v4l2-ctl -d /dev/video71 --all | grep -E "Card type|Bus info"
+                Card type        : rkisp_mainpath
+                Bus info         : platform:rkisp1-vir1
+        root@ATK-DLRK3588:/#
+        就可以知道对应的isp mainpath 对应的是哪个物理ISP。
+
+    4.每个ISP节点又有以下内容：
+    ISP节点包含：
+    视频输出：rkisp_mainpath、rkisp_selfpath、rkisp_fbcpath
+    RAW 回读：rkisp_rawrd0_m、rkisp_rawrd1_l、rkisp_rawrd2_s
+    控制/统计：rkisp-statistics、rkisp-input-params、rkisp_iqtool
+
+    5.使用下面的命令可以验证rkisp_mainpath和rkisp_selfpath的输出是否正常。
+    ./test_mpi_vi -m 1 -l 300 -w 3840 -h 2160 -t 4 -f 0 --buf_count 6 -o 1 -n /dev/video62
+    mv /data/venc_0.bin /data/venc_main_62.h264
+    ./test_mpi_vi -m 1 -l 300 -w 1920 -h 2160 -t 4 -f 0 --buf_count 6 -o 1 -n /dev/video63
+    mv /data/venc_0.bin /data/venc_self_63.h264
+
+    在ISP可以将视频流一分为二，在VPSS模块里面也可以将一个输入一分为二。
+
+
+
+
     
     
     
