@@ -4,41 +4,53 @@
 #include <thread>
 #include <memory>
 #include <atomic>
+#include <vector>
+#include <string>
+
 #include "VideoFrame.h"  // VideoFrame 用于表示存储的视频帧
 
 class CaptureThread {
-    public:
-    //构造函数
-    CaptureThread(int width, int height);
-    //析构函数
+public:
+    // 构造函数
+    CaptureThread(int width, int height, std::string deviceName);
+    // 析构函数
     ~CaptureThread();
 
-    //启动采集线程
+    // 启动采集线程
     void start();
 
-    //停止采集线程
+    // 停止采集线程
     void stop();
 
-    //获取最新的视频帧
+    // 获取最新的视频帧
     VideoFrame& getAvailableBuffer();
-    
-    //内联函数
+
+    // 内联函数
     inline bool isRunning() const {
         return running.load();
     }
-    private:
+
+private:
     void captureLoop();
-    uint8_t* acquireRawData();
+    bool initializeV4L2();  // 初始化 V4L2 设备
+    void cleanupV4L2();     // 清理 V4L2 设备
+    bool getFrame();        // 从 V4L2 获取视频帧
 
+    // 设备节点
+    int fd;
+    std::string deviceName;
+    std::vector<void*> buffers;           // mmap 映射的缓冲区
+    std::vector<VideoFrame> videoFrames;  // 封装好的 VideoFrame 对象
+    int width;
+    int height;
+
+    // 采集线程状态
     std::atomic<bool> running;
-    std::atomic<bool> isBuffer1InUse;
 
-    //采样乒乓缓冲区
-    VideoFrame buffer1;
-    VideoFrame buffer2;
+    // 当前最新可用帧的下标（与 videoFrames 中的索引对应）
+    std::atomic<size_t> latestFrameIndex{0};
 
     std::unique_ptr<std::thread> captureThread;
-
-}
+};
 
 #endif // CAPTURE_THREAD_H
