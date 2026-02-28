@@ -95,7 +95,6 @@ bool CaptureThread::initializeV4L2() {
     std::cout << "Buffers requested: " << req.count << std::endl;
 
     // 映射缓冲区
-    buffers.resize(req.count);
     videoFrames.resize(req.count);
 
     for (uint32_t i = 0; i < req.count; ++i) {
@@ -115,9 +114,7 @@ bool CaptureThread::initializeV4L2() {
             return false;
         }
 
-        buffers[i] = addr;
-
-        std::cout << "Buffer " << i << " mapped at: " << buffers[i] << std::endl;
+        std::cout << "Buffer " << i << " mapped at: " << addr << std::endl;
 
         //VideoFrame 只保存指针和元信息，不自己分配内存
         videoFrames[i].width       = width;
@@ -130,16 +127,17 @@ bool CaptureThread::initializeV4L2() {
 }
 
 void CaptureThread::cleanupV4L2() {
-    for (size_t i = 0; i < buffers.size(); ++i) {
-        if (buffers[i] != nullptr) {
-            munmap(buffers[i], videoFrames[i].size);
-            buffers[i] = nullptr;
+    for (size_t i = 0; i < videoFrames.size(); ++i) {
+        if (videoFrames[i].data != nullptr) {
+            munmap(videoFrames[i].data, videoFrames[i].size);
+            videoFrames[i].data = nullptr;
         }
     }
-    buffers.clear();
     videoFrames.clear();
-    close(fd);
-    fd = -1;
+    if (fd >= 0) {
+        close(fd);
+        fd = -1;
+    }
 }
 
 
@@ -191,6 +189,18 @@ bool CaptureThread::getFrame() {
     // 更新最新帧索引
     latestFrameIndex.store(buf.index, std::memory_order_release);
 
+    // 调用回调函数（通知所有消费者）
+    {
+        std::lock_guard<std::mutex> lock(callbackMutex);
+        if (frameCallback) {
+            try {
+                frameCallback(videoFrames[buf.index]);
+            } catch (const std::exception& e) {
+                std::cerr << "Frame callback exception: " << e.what() << std::endl;
+            }
+        }
+    }
+
     // 处理完后再把缓冲区重新放回队列
     if (ioctl(fd, VIDIOC_QBUF, &buf) < 0) {
         std::perror("VIDIOC_QBUF");
@@ -200,9 +210,14 @@ bool CaptureThread::getFrame() {
     return true;
 }
 
+void CaptureThread::setFrameCallback(FrameCallback callback) {
+    std::lock_guard<std::mutex> lock(callbackMutex);
+    frameCallback = callback;
+}
+
 void CaptureThread::captureLoop() {
     // 1. 先把所有缓冲区排队
-    for (uint32_t i = 0; i < buffers.size(); ++i) {
+    for (uint32_t i = 0; i < videoFrames.size(); ++i) {
         struct v4l2_buffer buf;
         std::memset(&buf, 0, sizeof(buf));
         buf.type   = V4L2_BUF_TYPE_VIDEO_CAPTURE;
