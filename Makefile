@@ -52,6 +52,7 @@ TARGET_DISPLAY   = $(BUILD_DIR)/camera_display_test
 TARGET_VI_VENC   = $(BUILD_DIR)/vi_venc_capture
 TARGET_DEMO_VI   = $(BUILD_DIR)/test_mpi_vi
 TARGET_MPI_ENC   = $(BUILD_DIR)/mpi_enc_test
+TARGET_MEDIA_MGR = $(BUILD_DIR)/test_media_manager
 
 MPI_ENC_UTIL_OBJS = $(BUILD_DIR)/utils.o \
                     $(BUILD_DIR)/mpi_enc_utils.o \
@@ -84,7 +85,7 @@ MPP_ENC_TEST_INCLUDES = -I$(INC_DIR) -I$(BUILD_DIR) \
 .PHONY: all clean
 
 # 检查工具链是否存在（在编译前自动检查）
-all: $(TARGET) $(TARGET_DISPLAY) $(TARGET_VI_VENC) $(TARGET_DEMO_VI) $(TARGET_MPI_ENC)
+all: $(TARGET) $(TARGET_DISPLAY) $(TARGET_VI_VENC) $(TARGET_DEMO_VI) $(TARGET_MPI_ENC) $(TARGET_MEDIA_MGR)
 
 # 在编译前检查工具链和创建符号链接
 $(TARGET): | check-toolchain $(BUILD_DIR)/drm
@@ -92,6 +93,7 @@ $(TARGET_DISPLAY): | check-toolchain $(BUILD_DIR)/drm
 $(TARGET_VI_VENC): | check-toolchain $(BUILD_DIR)/drm
 $(TARGET_DEMO_VI): | check-toolchain $(BUILD_DIR)/drm
 $(TARGET_MPI_ENC): | check-toolchain $(BUILD_DIR)/drm
+$(TARGET_MEDIA_MGR): | check-toolchain $(BUILD_DIR)/drm
 
 check-toolchain:
 	@if [ ! -f "$(CXX)" ]; then \
@@ -176,6 +178,19 @@ $(TARGET_DEMO_VI): $(BUILD_DIR)/test_mpi_vi.o $(ROCKIT_EXAMPLE_COMMON_OBJS)
 $(TARGET_MPI_ENC): $(BUILD_DIR)/mpi_enc_test.o $(MPI_ENC_UTIL_OBJS)
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+	$(STRIP) $@
+	@echo "Build complete: $@"
+	@file $@
+
+# MediaManager测试程序
+$(TARGET_MEDIA_MGR): $(BUILD_DIR)/test_media_manager.o \
+                     $(BUILD_DIR)/MediaManager.o \
+                     $(BUILD_DIR)/ServiceBase.o \
+                     $(BUILD_DIR)/VideoEncoderSvc.o \
+                     $(BUILD_DIR)/VideoOutputSvc.o \
+                     $(BUILD_DIR)/YUVOutputSvc.o
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $^ -o $@ $(LDFLAGS)
 	$(STRIP) $@
 	@echo "Build complete: $@"
 	@file $@

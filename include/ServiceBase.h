@@ -7,6 +7,7 @@
 #include <functional>
 #include <queue>
 #include <condition_variable>
+#include <string>
 
 /**
  * @brief 服务基类

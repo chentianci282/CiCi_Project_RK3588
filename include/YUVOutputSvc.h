@@ -25,14 +25,22 @@ public:
     void setYUVCallback(YUVCallback callback);
 
     /**
-     * @brief 输入 YUV 数据帧
+     * @brief 设置 MPP 参数（绑定模式下使用）
+     * 
+     * @param vpssGrpId VPSS 组ID
+     * @param vpssChnId VPSS 通道ID
      */
-    void inputFrame(const VideoFrame& frame);
+    void setMPPParams(int vpssGrpId, int vpssChnId);
 
 protected:
     void run() override;
 
 private:
+    /**
+     * @brief 从 VPSS 获取 YUV 帧（绑定模式下）
+     */
+    bool getYUVFrame();
+
     /**
      * @brief 处理一帧数据
      */
@@ -42,10 +50,10 @@ private:
     YUVCallback m_callback;
     std::mutex m_callbackMutex;
 
-    // 帧队列
-    std::queue<VideoFrame> m_frameQueue;
-    std::mutex m_queueMutex;
-    std::condition_variable m_queueCv;
+    // MPP 参数（绑定模式）
+    int m_vpssGrpId = -1;
+    int m_vpssChnId = -1;
+    bool m_useBindingMode = false;  // 是否使用绑定模式
 };
 
 #endif // YUV_OUTPUT_SVC_H

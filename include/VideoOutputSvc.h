@@ -35,9 +35,13 @@ public:
     void setDisplayParams(const DisplayParams& params);
 
     /**
-     * @brief 输入 YUV 数据帧
+     * @brief 设置 MPP 参数（绑定模式下使用）
+     * 
+     * @param voDevId VO 设备ID
+     * @param voLayerId VO 层ID
+     * @param voChnId VO 通道ID
      */
-    void inputFrame(const VideoFrame& frame);
+    void setMPPParams(int voDevId, int voLayerId, int voChnId);
 
     /**
      * @brief 显示控制
@@ -49,11 +53,6 @@ protected:
     void run() override;
 
 private:
-    /**
-     * @brief 显示一帧数据
-     */
-    void displayFrame(const VideoFrame& frame);
-
     /**
      * @brief 初始化 VO 硬件
      */
@@ -72,10 +71,11 @@ private:
     bool m_voInitialized = false;
     bool m_visible = true;
 
-    // 帧队列
-    std::queue<VideoFrame> m_frameQueue;
-    std::mutex m_queueMutex;
-    std::condition_variable m_queueCv;
+    // MPP 参数（绑定模式）
+    int m_voDevId = -1;
+    int m_voLayerId = -1;
+    int m_voChnId = -1;
+    bool m_useBindingMode = false;  // 是否使用绑定模式（绑定模式下数据自动显示，不需要循环）
 };
 
 #endif // VIDEO_OUTPUT_SVC_H

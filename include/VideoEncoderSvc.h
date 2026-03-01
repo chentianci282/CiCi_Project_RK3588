@@ -56,20 +56,20 @@ public:
     void setEncodeCallback(EncodeCallback callback);
 
     /**
-     * @brief 输入 YUV 数据帧
+     * @brief 设置 MPP 参数（绑定模式下使用）
      * 
-     * @param frame YUV 视频帧
+     * @param vencChnId VENC 通道ID
      */
-    void inputFrame(const VideoFrame& frame);
+    void setMPPParams(int vencChnId);
 
 protected:
     void run() override;
 
 private:
     /**
-     * @brief 编码一帧数据
+     * @brief 从 VENC 获取编码流（绑定模式下）
      */
-    void encodeFrame(const VideoFrame& frame);
+    bool getEncodedStream();
 
     /**
      * @brief 初始化编码器
@@ -92,10 +92,9 @@ private:
     // 编码器状态
     bool m_encoderInitialized = false;
     
-    // 帧队列
-    std::queue<VideoFrame> m_frameQueue;
-    std::mutex m_queueMutex;
-    std::condition_variable m_queueCv;
+    // MPP 参数（绑定模式）
+    int m_vencChnId = -1;
+    bool m_useBindingMode = false;  // 是否使用绑定模式
 };
 
 #endif // VIDEO_ENCODER_SVC_H

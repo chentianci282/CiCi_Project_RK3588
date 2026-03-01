@@ -1,8 +1,11 @@
 #include "VideoOutputSvc.h"
 #include <iostream>
+#include <unistd.h>
 
-// TODO: 这里需要根据实际的 VO 硬件接口（如 libdrm, Rockchip VO）来实现
-// 当前提供一个框架实现
+// MPP 头文件（绑定模式下可能不需要，因为数据自动流转）
+#include "rk_mpi_vo.h"
+#include "rk_comm_vo.h"
+#include "rk_common.h"
 
 VideoOutputSvc::VideoOutputSvc()
     : ServiceBase("VideoOutputSvc") {
@@ -24,18 +27,22 @@ void VideoOutputSvc::setDisplayParams(const DisplayParams& params) {
     }
 }
 
-void VideoOutputSvc::inputFrame(const VideoFrame& frame) {
-    {
-        std::lock_guard<std::mutex> lock(m_queueMutex);
-        m_frameQueue.push(frame);
-    }
-    m_queueCv.notify_one();
+void VideoOutputSvc::setMPPParams(int voDevId, int voLayerId, int voChnId) {
+    m_voDevId = voDevId;
+    m_voLayerId = voLayerId;
+    m_voChnId = voChnId;
+    m_useBindingMode = (voDevId >= 0 && voLayerId >= 0);
+    std::cout << "[" << m_name << "] Set MPP params: voDevId=" << voDevId 
+              << ", voLayerId=" << voLayerId 
+              << ", voChnId=" << voChnId
+              << ", bindingMode=" << m_useBindingMode << std::endl;
 }
 
 void VideoOutputSvc::show() {
     post([this]() {
         m_visible = true;
         std::cout << "[" << m_name << "] Show display" << std::endl;
+        // 绑定模式下，数据自动显示，这里可以设置 VO 层可见性
     });
 }
 
@@ -43,63 +50,24 @@ void VideoOutputSvc::hide() {
     post([this]() {
         m_visible = false;
         std::cout << "[" << m_name << "] Hide display" << std::endl;
+        // 绑定模式下，可以禁用 VO 层
     });
 }
 
 void VideoOutputSvc::run() {
-    // 初始化 VO
-    if (!initVO()) {
-        std::cerr << "[" << m_name << "] Failed to initialize VO" << std::endl;
-        return;
-    }
-
-    while (m_running.load()) {
-        // 处理任务队列
-        processTasks();
-
-        // 处理帧队列
-        VideoFrame frame;
-        bool hasFrame = false;
-
-        {
-            std::unique_lock<std::mutex> lock(m_queueMutex);
-            m_queueCv.wait_for(lock, std::chrono::milliseconds(33), [this] {
-                return !m_frameQueue.empty() || !m_running.load();
-            });
-
-            if (!m_frameQueue.empty()) {
-                frame = m_frameQueue.front();
-                m_frameQueue.pop();
-                hasFrame = true;
-            }
+    if (m_useBindingMode) {
+        // 绑定模式：数据自动从 VPSS 流转到 VO，不需要手动操作
+        // 服务线程只需要处理任务队列（如 show/hide 控制）
+        std::cout << "[" << m_name << "] Running in binding mode, data flows automatically" << std::endl;
+        
+        while (m_running.load()) {
+            processTasks();
+            usleep(100 * 1000);  // 100ms，主要是处理任务队列
         }
-
-        if (hasFrame && m_visible) {
-            displayFrame(frame);
-        }
+    } else {
+        // 非绑定模式：需要手动发送帧（当前未实现）
+        std::cerr << "[" << m_name << "] Non-binding mode not implemented" << std::endl;
     }
-
-    cleanupVO();
-}
-
-void VideoOutputSvc::displayFrame(const VideoFrame& frame) {
-    // TODO: 实现实际的显示逻辑
-    // 这里提供一个框架，实际需要：
-    // 1. 格式转换（如果需要）
-    // 2. 缩放（如果需要）
-    // 3. 输出到 VO 硬件
-    
-    std::lock_guard<std::mutex> paramsLock(m_paramsMutex);
-    
-    std::cout << "[" << m_name << "] Displaying frame: "
-              << frame.width << "x" << frame.height
-              << ", timestamp: " << frame.timestamp << std::endl;
-
-    // TODO: 实际显示操作
-    // 例如：
-    // - drmModeSetPlane() (使用 libdrm)
-    // - 或 Rockchip VO API
-    // - 或其他显示接口
 }
 
 bool VideoOutputSvc::initVO() {
