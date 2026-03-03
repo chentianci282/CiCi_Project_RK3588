@@ -66,7 +66,9 @@ bool VideoEncoderSvc::getEncodedStream() {
     RK_S32 s32Ret = RK_MPI_VENC_GetStream(m_vencChnId, &stStream, 100);  // 100ms 超时
     if (s32Ret != RK_SUCCESS) {
         if (s32Ret != RK_ERR_VENC_BUF_EMPTY) {
-            // 不是空缓冲区错误，记录日志
+            // 不是空缓冲区错误，记录日志，方便排查
+            std::cerr << "[VideoEncoderSvc] RK_MPI_VENC_GetStream failed: " << s32Ret
+                      << " (chn=" << m_vencChnId << ")" << std::endl;
         }
         return false;
     }

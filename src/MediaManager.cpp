@@ -99,7 +99,42 @@ void MediaManager::startEncoderService() {
         return;
     }
 
+    // 第一个服务启动时，会在 incrementServiceRef 中初始化 VI/VPSS 并完成 VI→VPSS 绑定
     incrementServiceRef();
+
+    // 如果 VI/VPSS 初始化失败，则不继续启动编码服务
+    if (!m_viInitialized || !m_vpssInitialized) {
+        std::cerr << "[MediaManager] startEncoderService: VI/VPSS not initialized, abort" << std::endl;
+        return;
+    }
+
+    // 初始化 VENC 并绑定 VPSS_CHN0 → VENC
+    std::cout << "[MediaManager] startEncoderService: initializeVENC() begin" << std::endl;
+    if (!initializeVENC()) {
+        std::cerr << "[MediaManager] startEncoderService: initializeVENC() failed" << std::endl;
+        decrementServiceRef();
+        return;
+    }
+    std::cout << "[MediaManager] startEncoderService: initializeVENC() ok" << std::endl;
+
+    MPP_CHN_S stSrcChn, stDestChn;
+    stSrcChn.enModId = RK_ID_VPSS;
+    stSrcChn.s32DevId = m_vpssGrpId;
+    stSrcChn.s32ChnId = VPSS_CHN0;
+
+    stDestChn.enModId = RK_ID_VENC;
+    stDestChn.s32DevId = 0;
+    stDestChn.s32ChnId = m_vencChnId;
+
+    RK_S32 s32Ret = RK_MPI_SYS_Bind(&stSrcChn, &stDestChn);
+    std::cout << "[MediaManager] startEncoderService: Bind VPSS_CHN0 -> VENC ret=" << s32Ret << std::endl;
+    if (s32Ret != RK_SUCCESS) {
+        std::cerr << "[MediaManager] Failed to bind VPSS_CHN0 to VENC: " << s32Ret << std::endl;
+        cleanupVENC();
+        decrementServiceRef();
+        return;
+    }
+    std::cout << "[MediaManager] VPSS_CHN0 → VENC bound (encoder service)" << std::endl;
     m_encoderRunning = true;
     m_encoderSvc->start();
     std::cout << "[MediaManager] Encoder service started" << std::endl;
@@ -111,7 +146,52 @@ void MediaManager::startOutputService() {
         return;
     }
 
+    // 引用计数 +1（可能不是第一个服务）
     incrementServiceRef();
+
+    // 如果 VI/VPSS 初始化失败，则不继续启动显示服务
+    if (!m_viInitialized || !m_vpssInitialized) {
+        std::cerr << "[MediaManager] startOutputService: VI/VPSS not initialized, abort" << std::endl;
+        return;
+    }
+
+    // 初始化 VO 并绑定 VPSS_CHN1 → VO
+    std::cout << "[MediaManager] startOutputService: initializeVO() begin" << std::endl;
+    if (!initializeVO()) {
+        std::cerr << "[MediaManager] startOutputService: initializeVO() failed" << std::endl;
+        decrementServiceRef();
+        return;
+    }
+    std::cout << "[MediaManager] startOutputService: initializeVO() ok" << std::endl;
+
+    MPP_CHN_S stSrcChn, stDestChn;
+    stSrcChn.enModId = RK_ID_VPSS;
+    stSrcChn.s32DevId = m_vpssGrpId;
+    stSrcChn.s32ChnId = VPSS_CHN1;
+
+    stDestChn.enModId = RK_ID_VO;
+    stDestChn.s32DevId = m_voLayerId;
+    stDestChn.s32ChnId = m_voChnId;
+
+    RK_S32 s32Ret = RK_MPI_SYS_Bind(&stSrcChn, &stDestChn);
+    std::cout << "[MediaManager] startOutputService: Bind VPSS_CHN1 -> VO ret=" << s32Ret << std::endl;
+    if (s32Ret != RK_SUCCESS) {
+        std::cerr << "[MediaManager] Failed to bind VPSS_CHN1 to VO: " << s32Ret << std::endl;
+        cleanupVO();
+        decrementServiceRef();
+        return;
+    }
+    // 启用 VO 通道
+    s32Ret = RK_MPI_VO_EnableChn(m_voLayerId, m_voChnId);
+    std::cout << "[MediaManager] startOutputService: Enable VO chn ret=" << s32Ret << std::endl;
+    if (s32Ret != RK_SUCCESS) {
+        std::cerr << "[MediaManager] Failed to enable VO channel: " << s32Ret << std::endl;
+        RK_MPI_SYS_UnBind(&stSrcChn, &stDestChn);
+        cleanupVO();
+        decrementServiceRef();
+        return;
+    }
+    std::cout << "[MediaManager] VPSS_CHN1 → VO bound (output service)" << std::endl;
     m_outputRunning = true;
     m_outputSvc->start();
     std::cout << "[MediaManager] Output service started" << std::endl;
@@ -134,9 +214,24 @@ void MediaManager::stopEncoderService() {
         return;
     }
 
+    // 先停止服务线程
     m_encoderSvc->stop();
     m_encoderSvc->join();
     m_encoderRunning = false;
+
+    // 解绑 VPSS_CHN0 → VENC 并清理 VENC
+    MPP_CHN_S stSrcChn, stDestChn;
+    stSrcChn.enModId = RK_ID_VPSS;
+    stSrcChn.s32DevId = m_vpssGrpId;
+    stSrcChn.s32ChnId = VPSS_CHN0;
+
+    stDestChn.enModId = RK_ID_VENC;
+    stDestChn.s32DevId = 0;
+    stDestChn.s32ChnId = m_vencChnId;
+
+    RK_MPI_SYS_UnBind(&stSrcChn, &stDestChn);
+    cleanupVENC();
+
     decrementServiceRef();
     std::cout << "[MediaManager] Encoder service stopped" << std::endl;
 }
@@ -146,9 +241,25 @@ void MediaManager::stopOutputService() {
         return;
     }
 
+    // 先停止服务线程
     m_outputSvc->stop();
     m_outputSvc->join();
     m_outputRunning = false;
+
+    // 解绑 VPSS_CHN1 → VO 并清理 VO
+    MPP_CHN_S stSrcChn, stDestChn;
+    stSrcChn.enModId = RK_ID_VPSS;
+    stSrcChn.s32DevId = m_vpssGrpId;
+    stSrcChn.s32ChnId = VPSS_CHN1;
+
+    stDestChn.enModId = RK_ID_VO;
+    stDestChn.s32DevId = m_voLayerId;
+    stDestChn.s32ChnId = m_voChnId;
+
+    RK_MPI_SYS_UnBind(&stSrcChn, &stDestChn);
+    RK_MPI_VO_DisableChn(m_voLayerId, m_voChnId);
+    cleanupVO();
+
     decrementServiceRef();
     std::cout << "[MediaManager] Output service stopped" << std::endl;
 }
@@ -422,35 +533,43 @@ void MediaManager::teardownBindings() {
 void MediaManager::incrementServiceRef() {
     std::lock_guard<std::mutex> lock(m_refCountMutex);
     int oldCount = m_serviceRefCount.fetch_add(1);
-    
-    std::cout << "[MediaManager] Service ref count: " << oldCount << " -> " << (oldCount + 1) << std::endl;
-    
-    // 如果是第一个服务启动，初始化VI和VPSS
+
+    std::cout << "[MediaManager] Service ref count: "
+              << oldCount << " -> " << (oldCount + 1) << std::endl;
+
+    // 如果是第一个服务启动，初始化VI和VPSS，并完成 VI→VPSS 绑定
     if (oldCount == 0) {
+        std::cout << "[MediaManager] incrementServiceRef: first service, initialize VI/VPSS" << std::endl;
+
+        std::cout << "[MediaManager] initializeVI() begin" << std::endl;
         if (!initializeVI()) {
-            std::cerr << "[MediaManager] Failed to initialize VI" << std::endl;
+            std::cerr << "[MediaManager] initializeVI() failed" << std::endl;
             m_serviceRefCount.fetch_sub(1);  // 回滚
             return;
         }
-        
+        std::cout << "[MediaManager] initializeVI() ok" << std::endl;
+
+        std::cout << "[MediaManager] initializeVPSS() begin" << std::endl;
         if (!initializeVPSS()) {
-            std::cerr << "[MediaManager] Failed to initialize VPSS" << std::endl;
+            std::cerr << "[MediaManager] initializeVPSS() failed" << std::endl;
             cleanupVI();
             m_serviceRefCount.fetch_sub(1);  // 回滚
             return;
         }
-        
-        // 绑定 VI → VPSS
+        std::cout << "[MediaManager] initializeVPSS() ok" << std::endl;
+
+        std::cout << "[MediaManager] bind VI->VPSS begin" << std::endl;
         MPP_CHN_S stSrcChn, stDestChn;
         stSrcChn.enModId = RK_ID_VI;
         stSrcChn.s32DevId = m_viDevId;
         stSrcChn.s32ChnId = m_viChnId;
-        
+
         stDestChn.enModId = RK_ID_VPSS;
         stDestChn.s32DevId = m_vpssGrpId;
         stDestChn.s32ChnId = 0;  // VPSS 组输入
-        
+
         RK_S32 s32Ret = RK_MPI_SYS_Bind(&stSrcChn, &stDestChn);
+        std::cout << "[MediaManager] RK_MPI_SYS_Bind(VI->VPSS) ret=" << s32Ret << std::endl;
         if (s32Ret != RK_SUCCESS) {
             std::cerr << "[MediaManager] Failed to bind VI to VPSS: " << s32Ret << std::endl;
             cleanupVPSS();
@@ -458,13 +577,12 @@ void MediaManager::incrementServiceRef() {
             m_serviceRefCount.fetch_sub(1);  // 回滚
             return;
         }
-        
+
         m_bindingsSetup = true;
-        std::cout << "[MediaManager] VI → VPSS bound" << std::endl;
+        std::cout << "[MediaManager] VI → VPSS bound (first service path done)" << std::endl;
     }
-    
-    // 根据当前服务状态更新绑定
-    updateBindings();
+
+    // 当前版本中，VENC/VO 的绑定在各自的 startXxxService 中完成
 }
 
 int MediaManager::decrementServiceRef() {
@@ -484,9 +602,6 @@ int MediaManager::decrementServiceRef() {
         
         m_bindingsSetup = false;
         std::cout << "[MediaManager] All services stopped, VI and VPSS cleaned up" << std::endl;
-    } else {
-        // 更新绑定（解绑不需要的服务）
-        updateBindings();
     }
     
     return newCount;
@@ -580,33 +695,25 @@ bool MediaManager::initializeVI() {
     }
     
     RK_S32 s32Ret = RK_FAILURE;
+    std::cout << "[MediaManager] initializeVI: start, viDev=" << m_viDevId
+              << " pipe=" << m_viPipeId
+              << " chn=" << m_viChnId
+              << " entity=" << m_entityName << std::endl;
     
-    // 1. 配置 VI 设备属性
+    // 1. 获取/检查 VI 设备属性（参考 test_mpi_vi：如未配置则用当前结构进行一次 SetDevAttr）
     VI_DEV_ATTR_S stDevAttr;
     memset(&stDevAttr, 0, sizeof(VI_DEV_ATTR_S));
-    
-    stDevAttr.enIntfMode = VI_MODE_MIPI;
-    stDevAttr.enWorkMode = VI_WORK_MODE_1Multiplex;
-    stDevAttr.enDataSeq = VI_DATA_SEQ_UYVY;
-    stDevAttr.enInputDataType = VI_DATA_TYPE_YUV;
-    stDevAttr.stMaxSize.u32Width = 3840;
-    stDevAttr.stMaxSize.u32Height = 2160;
-    stDevAttr.enDataRate = DATA_RATE_X1;
-    stDevAttr.enPixFmt = RK_FMT_YUV420SP;
-    stDevAttr.enMemMode = VI_RAW_MEM_COMPACT;
-    stDevAttr.enBufType = VI_V4L2_MEMORY_TYPE_DMABUF;
-    stDevAttr.u32BufCount = 3;
-    stDevAttr.enHdrMode = VI_MODE_NORMAL;
-    
+
     s32Ret = RK_MPI_VI_GetDevAttr(m_viDevId, &stDevAttr);
     if (s32Ret == RK_ERR_VI_NOT_CONFIG) {
+        // 与 test_mpi_vi 一致：如果未配置，则使用当前 stDevAttr 调用一次 SetDevAttr
         s32Ret = RK_MPI_VI_SetDevAttr(m_viDevId, &stDevAttr);
         if (s32Ret != RK_SUCCESS) {
             std::cerr << "[MediaManager] RK_MPI_VI_SetDevAttr failed: " << s32Ret << std::endl;
             return false;
         }
     }
-    
+
     // 2. 启用设备
     s32Ret = RK_MPI_VI_GetDevIsEnable(m_viDevId);
     if (s32Ret != RK_SUCCESS) {
@@ -631,30 +738,10 @@ bool MediaManager::initializeVI() {
         }
     }
     
-    // 4. 创建管道
-    VI_PIPE_ATTR_S stPipeAttr;
-    memset(&stPipeAttr, 0, sizeof(VI_PIPE_ATTR_S));
-    stPipeAttr.bIspBypass = RK_FALSE;
-    stPipeAttr.u32MaxW = 3840;
-    stPipeAttr.u32MaxH = 2160;
-    stPipeAttr.enPixFmt = RK_FMT_YUV420SP;
-    stPipeAttr.enCompressMode = COMPRESS_MODE_NONE;
-    stPipeAttr.enBitWidth = DATA_BITWIDTH_8;
-    stPipeAttr.stFrameRate.s32SrcFrameRate = -1;
-    stPipeAttr.stFrameRate.s32DstFrameRate = -1;
-    stPipeAttr.enMemMode = VI_RAW_MEM_COMPACT;
-    stPipeAttr.enHdrMode = VI_MODE_NORMAL;
-    
-    s32Ret = RK_MPI_VI_CreatePipe(m_viPipeId, &stPipeAttr);
-    if (s32Ret != RK_SUCCESS) {
-        std::cerr << "[MediaManager] RK_MPI_VI_CreatePipe failed: " << s32Ret << std::endl;
-        return false;
-    }
-    
-    // 5. 配置通道属性
+    // 4. 配置通道属性（参考 test_mpi_vi：只设置必要字段，避免与 ISP 默认配置冲突）
     VI_CHN_ATTR_S stChnAttr;
     memset(&stChnAttr, 0, sizeof(VI_CHN_ATTR_S));
-    stChnAttr.stSize.u32Width = 3840;
+    stChnAttr.stSize.u32Width  = 3840;
     stChnAttr.stSize.u32Height = 2160;
     stChnAttr.enPixelFormat = RK_FMT_YUV420SP;
     stChnAttr.enDynamicRange = DYNAMIC_RANGE_SDR8;
@@ -662,21 +749,25 @@ bool MediaManager::initializeVI() {
     stChnAttr.enCompressMode = COMPRESS_MODE_NONE;
     stChnAttr.bMirror = RK_FALSE;
     stChnAttr.bFlip = RK_FALSE;
-    stChnAttr.u32Depth = 3;
+    // 对齐 test_mpi_vi 在绑定 VENC 模式下的配置：u32Depth = 0，由绑定模块控制缓冲
+    stChnAttr.u32Depth = 0;
     stChnAttr.stFrameRate.s32SrcFrameRate = -1;
     stChnAttr.stFrameRate.s32DstFrameRate = -1;
     stChnAttr.enAllocBufType = VI_ALLOC_BUF_TYPE_INTERNAL;
-    
-    // 设置 entity 名称
+
+    // 设置 entity 名称（与 test_mpi_vi 一致）
     if (!m_entityName.empty()) {
         strncpy(stChnAttr.stIspOpt.aEntityName, m_entityName.c_str(), MAX_VI_ENTITY_NAME_LEN - 1);
         stChnAttr.stIspOpt.aEntityName[MAX_VI_ENTITY_NAME_LEN - 1] = '\0';
     }
-    stChnAttr.stIspOpt.enMemoryType = VI_V4L2_MEMORY_TYPE_DMABUF;
-    stChnAttr.stIspOpt.enCaptureType = VI_V4L2_CAPTURE_TYPE_VIDEO_CAPTURE_MPLANE;
+    // 与 test_mpi_vi 参数对应：
+    // - enMemoryType 由 -t 4 指定为 DMABUF
+    // - enCaptureType 保持为 VIDEO_CAPTURE（单平面），不要强行使用 MPLANE
+    stChnAttr.stIspOpt.enMemoryType  = VI_V4L2_MEMORY_TYPE_DMABUF;
+    stChnAttr.stIspOpt.enCaptureType = VI_V4L2_CAPTURE_TYPE_VIDEO_CAPTURE;
+    // 与 demo 命令 --buf_count 6 对应
+    stChnAttr.stIspOpt.u32BufCount   = 6;
     stChnAttr.stIspOpt.bNoUseLibV4L2 = RK_FALSE;
-    stChnAttr.stIspOpt.stMaxSize.u32Width = 3840;
-    stChnAttr.stIspOpt.stMaxSize.u32Height = 2160;
     
     s32Ret = RK_MPI_VI_SetChnAttr(m_viPipeId, m_viChnId, &stChnAttr);
     if (s32Ret != RK_SUCCESS) {
@@ -692,14 +783,26 @@ bool MediaManager::initializeVI() {
     }
     
     // 7. 启动管道
-    s32Ret = RK_MPI_VI_StartPipe(m_viPipeId);
-    if (s32Ret != RK_SUCCESS) {
-        std::cerr << "[MediaManager] RK_MPI_VI_StartPipe failed: " << s32Ret << std::endl;
-        return false;
-    }
-    
+    // 说明：在 rockit 官方 demo（test_mpi_vi）中，并未显式调用 RK_MPI_VI_StartPipe，
+    // 实际使用中由驱动/ISP 内部完成，我们这里也不再手动 StartPipe，避免无效调用。
     m_viInitialized = true;
     std::cout << "[MediaManager] VI initialized" << std::endl;
+
+    // 8. 读取实际通道属性，记录真实宽高，用于后续 VPSS/VENC
+    VI_CHN_ATTR_S stChnAttrGet;
+    memset(&stChnAttrGet, 0, sizeof(VI_CHN_ATTR_S));
+    s32Ret = RK_MPI_VI_GetChnAttr(m_viPipeId, m_viChnId, &stChnAttrGet);
+    if (s32Ret == RK_SUCCESS) {
+        m_imgWidth  = stChnAttrGet.stSize.u32Width;
+        m_imgHeight = stChnAttrGet.stSize.u32Height;
+    } else {
+        // 回退到期望值
+        m_imgWidth  = 3840;
+        m_imgHeight = 2160;
+    }
+    std::cout << "[MediaManager] VI actual size: "
+              << m_imgWidth << "x" << m_imgHeight << std::endl;
+
     return true;
 }
 
@@ -708,9 +811,7 @@ void MediaManager::cleanupVI() {
         return;
     }
     
-    RK_MPI_VI_StopPipe(m_viPipeId);
     RK_MPI_VI_DisableChn(m_viPipeId, m_viChnId);
-    RK_MPI_VI_DestroyPipe(m_viPipeId);
     RK_MPI_VI_DisableDev(m_viDevId);
     
     m_viInitialized = false;
@@ -725,6 +826,10 @@ bool MediaManager::initializeVPSS() {
     RK_S32 s32Ret = RK_FAILURE;
 
     // ========== 初始化 VPSS ==========
+    // 使用实际图像宽高（来自 VI 通道）
+    RK_U32 vpssW = m_imgWidth  > 0 ? static_cast<RK_U32>(m_imgWidth)  : 3840;
+    RK_U32 vpssH = m_imgHeight > 0 ? static_cast<RK_U32>(m_imgHeight) : 2160;
+
     VPSS_GRP_ATTR_S stGrpAttr;
     memset(&stGrpAttr, 0, sizeof(VPSS_GRP_ATTR_S));
     stGrpAttr.u32MaxW = 4096;
@@ -748,8 +853,8 @@ bool MediaManager::initializeVPSS() {
     stChnAttr.enPixelFormat = RK_FMT_YUV420SP;
     stChnAttr.stFrameRate.s32SrcFrameRate = -1;
     stChnAttr.stFrameRate.s32DstFrameRate = -1;
-    stChnAttr.u32Width = 3840;
-    stChnAttr.u32Height = 2160;
+    stChnAttr.u32Width  = vpssW;
+    stChnAttr.u32Height = vpssH;
     stChnAttr.enCompressMode = COMPRESS_MODE_NONE;
 
     s32Ret = RK_MPI_VPSS_SetChnAttr(m_vpssGrpId, VPSS_CHN0, &stChnAttr);
@@ -805,10 +910,14 @@ bool MediaManager::initializeVENC() {
     VENC_CHN_ATTR_S stVencAttr;
     memset(&stVencAttr, 0, sizeof(VENC_CHN_ATTR_S));
     stVencAttr.stVencAttr.enType = RK_VIDEO_ID_AVC;  // H264
-    stVencAttr.stVencAttr.u32PicWidth = 3840;
-    stVencAttr.stVencAttr.u32PicHeight = 2160;
-    stVencAttr.stVencAttr.u32VirWidth = 3840;
-    stVencAttr.stVencAttr.u32VirHeight = 2160;
+
+    // 使用实际图像宽高（与 VPSS 一致）
+    RK_U32 vencW = m_imgWidth  > 0 ? static_cast<RK_U32>(m_imgWidth)  : 3840;
+    RK_U32 vencH = m_imgHeight > 0 ? static_cast<RK_U32>(m_imgHeight) : 2160;
+    stVencAttr.stVencAttr.u32PicWidth  = vencW;
+    stVencAttr.stVencAttr.u32PicHeight = vencH;
+    stVencAttr.stVencAttr.u32VirWidth  = vencW;
+    stVencAttr.stVencAttr.u32VirHeight = vencH;
     stVencAttr.stVencAttr.enPixelFormat = RK_FMT_YUV420SP;
     stVencAttr.stVencAttr.u32Profile = H264E_PROFILE_HIGH;
     stVencAttr.stRcAttr.enRcMode = VENC_RC_MODE_H264CBR;
@@ -823,6 +932,18 @@ bool MediaManager::initializeVENC() {
     s32Ret = RK_MPI_VENC_CreateChn(m_vencChnId, &stVencAttr);
     if (s32Ret != RK_SUCCESS) {
         std::cerr << "[MediaManager] Failed to create VENC channel: " << s32Ret << std::endl;
+        return false;
+    }
+
+    // 启动接收帧（-1 表示不限帧数）
+    VENC_RECV_PIC_PARAM_S stRecvParam;
+    memset(&stRecvParam, 0, sizeof(VENC_RECV_PIC_PARAM_S));
+    stRecvParam.s32RecvPicNum = -1;
+
+    s32Ret = RK_MPI_VENC_StartRecvFrame(m_vencChnId, &stRecvParam);
+    if (s32Ret != RK_SUCCESS) {
+        std::cerr << "[MediaManager] RK_MPI_VENC_StartRecvFrame failed: " << s32Ret << std::endl;
+        RK_MPI_VENC_DestroyChn(m_vencChnId);
         return false;
     }
     

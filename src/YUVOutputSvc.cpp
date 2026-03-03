@@ -56,7 +56,9 @@ bool YUVOutputSvc::getYUVFrame() {
     RK_S32 s32Ret = RK_MPI_VPSS_GetChnFrame(m_vpssGrpId, m_vpssChnId, &stFrame, 100);  // 100ms 超时
     if (s32Ret != RK_SUCCESS) {
         if (s32Ret != RK_ERR_VPSS_BUF_EMPTY) {
-            // 不是空缓冲区错误，记录日志
+            // 不是空缓冲区错误，记录日志，方便排查
+            std::cerr << "[YUVOutputSvc] RK_MPI_VPSS_GetChnFrame failed: " << s32Ret
+                      << " (grp=" << m_vpssGrpId << ", chn=" << m_vpssChnId << ")" << std::endl;
         }
         return false;
     }

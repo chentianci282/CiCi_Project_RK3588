@@ -153,6 +153,10 @@ private:
     int m_vpssChnVo;    // 显示用的 VPSS 通道
     int m_vpssChnYuv;   // YUV输出用的 VPSS 通道
 
+    // 实际图像宽高（从 VI 通道获取，用于配置 VPSS/VENC 等）
+    int m_imgWidth  = 0;
+    int m_imgHeight = 0;
+
     // VENC 参数
     int m_vencChnId;
 

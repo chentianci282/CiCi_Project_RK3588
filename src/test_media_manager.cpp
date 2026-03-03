@@ -9,13 +9,17 @@
 #include <mutex>
 #include <cstring>
 
+// MPP 系统头文件
+#include "rk_mpi_sys.h"
+
 // 测试参数（写死）
 static const int WIDTH = 3840;
 static const int HEIGHT = 2160;
 static const std::string DEVICE = "/dev/video62";
 static const int VI_DEV_ID = 0;
 static const int VI_PIPE_ID = 0;
-static const int VI_CHN_ID = 0;
+// 对齐 test_mpi_vi 的默认通道配置：channelId 默认为 1
+static const int VI_CHN_ID = 1;
 static const std::string VENC_OUTPUT_FILE = "/data/venc_0.bin";
 static const std::string YUV_OUTPUT_FILE = "/data/yuv_0.raw";
 static const size_t MAX_FILE_SIZE = 50 * 1024 * 1024;  // 50MB
@@ -38,6 +42,9 @@ void signalHandler(int sig) {
 
 // 编码数据回调
 void onEncodedFrame(const EncodedFrame& frame) {
+    std::cout << "[Test] onEncodedFrame called, size=" << frame.size
+              << ", isKeyFrame=" << (frame.isKeyFrame ? "Yes" : "No") << std::endl;
+
     if (frame.size > 0) {
         std::lock_guard<std::mutex> lock(g_venc_file_mutex);
         
@@ -67,6 +74,11 @@ void onEncodedFrame(const EncodedFrame& frame) {
 
 // YUV 数据回调（保存YUV数据）
 void onYUVFrame(const VideoFrame& frame) {
+    std::cout << "[Test] onYUVFrame called, data=" << static_cast<const void*>(frame.data)
+              << ", size=" << frame.size
+              << ", w=" << frame.width
+              << ", h=" << frame.height << std::endl;
+
     if (frame.data != nullptr && frame.size > 0) {
         std::lock_guard<std::mutex> lock(g_yuv_file_mutex);
         
@@ -107,7 +119,7 @@ int main(int argc, char* argv[]) {
     std::cout << "VI Dev/Pipe/Chn: " << VI_DEV_ID << "/" << VI_PIPE_ID << "/" << VI_CHN_ID << std::endl;
     std::cout << "VENC Output: " << VENC_OUTPUT_FILE << " (max 50MB)" << std::endl;
     std::cout << "YUV Output: " << YUV_OUTPUT_FILE << " (max 50MB)" << std::endl;
-    std::cout << "VO Output: Screen display" << std::endl;
+    std::cout << "VO Output: (temporarily disabled)" << std::endl;
     std::cout << "Press Ctrl+C to stop" << std::endl;
     std::cout << "========================================" << std::endl;
     std::cout << std::endl;
@@ -115,6 +127,13 @@ int main(int argc, char* argv[]) {
     // 注册信号处理
     signal(SIGINT, signalHandler);
     signal(SIGTERM, signalHandler);
+
+    // 初始化 MPP 系统（非常关键，所有 RK_MPI_* 调用前必须调用）
+    if (RK_MPI_SYS_Init() != RK_SUCCESS) {
+        std::cerr << "[Test] RK_MPI_SYS_Init failed" << std::endl;
+        return -1;
+    }
+    std::cout << "[Test] RK_MPI_SYS_Init ok" << std::endl;
 
     // 创建 MediaManager
     MediaManager manager;
@@ -129,10 +148,13 @@ int main(int argc, char* argv[]) {
 
     // 设置编码回调
     auto encoderSvc = manager.getEncoderService();
+    std::cout << "[Test] Got encoderSvc ptr: " << (encoderSvc ? "non-null" : "null") << std::endl;
     if (encoderSvc) {
+        std::cout << "[Test] Before setEncodeCallback" << std::endl;
         encoderSvc->setEncodeCallback(onEncodedFrame);
         
         // 设置编码参数
+        std::cout << "[Test] Before setEncodeParams" << std::endl;
         EncodeParams params;
         params.width = WIDTH;
         params.height = HEIGHT;
@@ -172,11 +194,11 @@ int main(int argc, char* argv[]) {
     std::cout << "[Test] YUV output file opened: " << YUV_OUTPUT_FILE << std::endl;
 
     // 启动所有服务
-    std::cout << "[Test] Starting services..." << std::endl;
+    std::cout << "[Test] Starting services (VO disabled)..." << std::endl;
     manager.startEncoderService();  // VENC编码
-    manager.startOutputService();   // VO显示
+    //manager.startOutputService(); // 暂时屏蔽 VO 显示线程
     manager.startYUVService();      // YUV输出
-    std::cout << "[Test] All services started" << std::endl;
+    std::cout << "[Test] Encoder & YUV services started" << std::endl;
     std::cout << std::endl;
 
     // 运行循环（一直运行直到收到信号）
@@ -190,7 +212,7 @@ int main(int argc, char* argv[]) {
         std::cout << "[Test] Running... "
                   << "VENC: " << g_frame_count << " frames (" << (g_venc_file_size / 1024 / 1024) << "MB), "
                   << "YUV: " << g_yuv_count << " frames (" << (g_yuv_file_size / 1024 / 1024) << "MB), "
-                  << "VO: Displaying on screen" << std::endl;
+                  << "VO: Disabled in this run" << std::endl;
     }
 
     std::cout << "----------------------------------------" << std::endl;
@@ -198,7 +220,7 @@ int main(int argc, char* argv[]) {
 
     // 停止所有服务
     manager.stopEncoderService();
-    manager.stopOutputService();
+    //manager.stopOutputService(); // 本轮测试未启动 VO
     manager.stopYUVService();
 
     // 关闭文件
@@ -220,6 +242,9 @@ int main(int argc, char* argv[]) {
 
     // 反初始化
     manager.deinit();
+
+    // 退出 MPP 系统
+    RK_MPI_SYS_Exit();
 
     // 打印统计信息
     std::cout << std::endl;
